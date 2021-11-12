@@ -128,34 +128,28 @@ private:
 
     std::vector<std::shared_ptr<Kontrol::Module>> getModules(const std::shared_ptr<Kontrol::Rack> &rack);
 
-    // /////////////////////////////////////////////////
-    // // OSC
-    // friend class NuiListener;
-    // friend class NuiPacketListener;
-    // bool connect(const std::string& host, unsigned port);
-    // bool listen(unsigned port);
-    // void sendOscString(const std::string& topic, std::string value);
-    // void send(const char *data, unsigned size);
-    // struct OscMsg {
-    //     static const int MAX_N_OSC_MSGS = 64;
-    //     static const int MAX_OSC_MESSAGE_SIZE = 128;
-    //     int size_;
-    //     char buffer_[MAX_OSC_MESSAGE_SIZE];
-    //     IpEndpointName origin_; // only used when for recv
-    // };
-    // bool writeRunning_;
-    // bool listenRunning_;
-    // std::shared_ptr<UdpTransmitSocket> writeSocket_;
-    // moodycamel::BlockingReaderWriterQueue<OscMsg> writeMessageQueue_;
-    // std::thread writer_thread_;
+    /////////////////////////////////////////////////
+    // OSC
+    friend class NuiListener;
+    friend class NuiPacketListener;
+    bool connect(const std::string& host, unsigned port);
+    bool listen(unsigned port);
+    struct OscMsg {
+        static const int MAX_N_OSC_MSGS = 64;
+        static const int MAX_OSC_MESSAGE_SIZE = 128;
+        int size_;
+        char buffer_[MAX_OSC_MESSAGE_SIZE];
+        IpEndpointName origin_; // only used when for recv
+    };
+    bool listenRunning_;
 
-    // std::shared_ptr<UdpListeningReceiveSocket> readSocket_;
-    // std::shared_ptr<PacketListener> packetListener_;
-    // std::shared_ptr<OscDisplayListener> oscListener_;
-    // moodycamel::ReaderWriterQueue<OscMsg> readMessageQueue_;
-    // std::thread receive_thread_;
-    // unsigned listenPort_;
-    // /////////////////////////////////////////////////
+    std::shared_ptr<UdpListeningReceiveSocket> readSocket_;
+    std::shared_ptr<PacketListener> packetListener_;
+    std::shared_ptr<OscDisplayListener> oscListener_;
+    moodycamel::ReaderWriterQueue<OscMsg> readMessageQueue_;
+    std::thread receive_thread_;
+    unsigned listenPort_;
+    /////////////////////////////////////////////////
 
 
     void stop() override;

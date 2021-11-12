@@ -4,6 +4,12 @@
 #include <unordered_set>
 #include <unistd.h>
 
+#include <osc/OscOutboundPacketStream.h>
+#include <osc/OscReceivedElements.h>
+#include <osc/OscPacketListener.h>
+#include <ip/UdpSocket.h>
+#include <readerwriterqueue.h>
+
 #include <mec_log.h>
 
 #include "nui/nui_basemode.h"
@@ -61,7 +67,8 @@ bool Nui::init(void *arg) {
         deinit();
     }
     active_ = false;
-
+    listenRunning_ = false;
+    unsigned listenPort = prefs.getInt("listen port", 6100);
 
     active_ = true;
     if (active_) {
@@ -78,6 +85,8 @@ bool Nui::init(void *arg) {
 //        addMode(NM_MODULESELECTMENU, std::make_shared<NuiModuleSelectMenu>(*this));
 
         changeMode(NM_PARAMETER);
+
+        listen(listenPort);
     }
     device_->drawPNG(0, 0, splash.c_str());
     device_->displayText(15, 0, 1, "Connecting...");
@@ -85,6 +94,17 @@ bool Nui::init(void *arg) {
 }
 
 void Nui::deinit() {
+    listenRunning_ = false;
+
+    if (readSocket_) {
+        readSocket_->AsynchronousBreak();
+        receive_thread_.join();
+        OscMsg msg;
+        while (readMessageQueue_.try_dequeue(msg));
+    }
+    listenPort_ = 0;
+    readSocket_.reset();
+
     device_->stop();
     device_ = nullptr;
     active_ = false;
@@ -97,6 +117,11 @@ bool Nui::isActive() {
 
 // Kontrol::KontrolCallback
 bool Nui::process() {
+    OscMsg msg;
+    while (readMessageQueue_.try_dequeue(msg)) {
+        oscListener_->ProcessPacket(msg.buffer_, msg.size_, msg.origin_);
+    }
+
     pollCount_++;
     if ( ( pollCount_ % pollFreq_) == 0) {
         modes_[currentMode_]->poll();
@@ -112,27 +137,6 @@ bool Nui::process() {
 void Nui::stop() {
     deinit();
 }
-
-//bool Nui::connect(const std::string &hostname, unsigned port) {
-//    clearDisplay();
-//
-//    // send out current module and page
-//    auto rack = model()->getRack(currentRack());
-//    auto module = model()->getModule(rack, currentModule());
-//    auto page = model()->getPage(module, currentPage());
-//    std::string md = "";
-//    std::string pd = "";
-//    if (module) md = module->id() + " : " +module->displayName();
-//    if (page) pd = page->displayName();
-//    displayTitle(md, pd);
-//
-//    changeMode(NuiModes::NM_PARAMETER);
-//    modes_[currentMode_]->activate();
-//
-//
-//    return true;
-//}
-
 
 //--modes and forwarding
 void Nui::addMode(NuiModes mode, std::shared_ptr<NuiMode> m) {
@@ -409,141 +413,170 @@ void Nui::currentModule(const Kontrol::EntityId &modId) {
     model()->activeModule(Kontrol::CS_LOCAL, currentRackId_, currentModuleId_);
 }
 
-// /////////////////////////////////////////////////
+/////////////////////////////////////////////////
 
-// // Osc implmentation
+// Osc implmentation
 
-// class NuiPacketListener : public PacketListener {
-// public:
-//     OscDisplayPacketListener(moodycamel::ReaderWriterQueue<OscDisplay::OscMsg> &queue) : queue_(queue) {
-//     }
+class NuiPacketListener : public PacketListener {
+public:
+    OscDisplayPacketListener(moodycamel::ReaderWriterQueue<OscDisplay::OscMsg> &queue) : queue_(queue) {
+    }
 
-//     virtual void ProcessPacket(const char *data, int size,
-//                                const IpEndpointName &remoteEndpoint) {
+    virtual void ProcessPacket(const char *data, int size,
+                               const IpEndpointName &remoteEndpoint) {
 
-//         OscDisplay::OscMsg msg;
-// //        msg.origin_ = remoteEndpoint;
-//         msg.size_ = (size > OscDisplay::OscMsg::MAX_OSC_MESSAGE_SIZE ? OscDisplay::OscMsg::MAX_OSC_MESSAGE_SIZE
-//                                                                      : size);
-//         memcpy(msg.buffer_, data, (size_t) msg.size_);
-//         msg.origin_ = remoteEndpoint;
-//         queue_.enqueue(msg);
-//     }
+        OscDisplay::OscMsg msg;
+//        msg.origin_ = remoteEndpoint;
+        msg.size_ = (size > OscDisplay::OscMsg::MAX_OSC_MESSAGE_SIZE ? OscDisplay::OscMsg::MAX_OSC_MESSAGE_SIZE
+                                                                     : size);
+        memcpy(msg.buffer_, data, (size_t) msg.size_);
+        msg.origin_ = remoteEndpoint;
+        queue_.enqueue(msg);
+    }
 
-// private:
-//     moodycamel::ReaderWriterQueue<OscDisplay::OscMsg> &queue_;
-// };
-
-
-// class NuiListener : public osc::NuiPacketListener {
-// public:
-//     OscDisplayListener(OscDisplay &recv) : receiver_(recv) { ; }
+private:
+    moodycamel::ReaderWriterQueue<OscDisplay::OscMsg> &queue_;
+};
 
 
-//     virtual void ProcessMessage(const osc::ReceivedMessage &m,
-//                                 const IpEndpointName &remoteEndpoint) {
-//         try {
-//             char host[IpEndpointName::ADDRESS_STRING_LENGTH];
-//             remoteEndpoint.AddressAsString(host);
-//             if (std::strcmp(m.AddressPattern(), "/Connect") == 0) {
-//                 osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
-//                 int port = arg->AsInt32();
-//                 if (port > 0) {
-//                     receiver_.connect(host, port);
-//                 }
-//             } else if (std::strcmp(m.AddressPattern(), "/NavPrev") == 0) {
-//                 osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
-//                 if (isArgFalse(arg)) return;
-//                 receiver_.navPrev();
-//             } else if (std::strcmp(m.AddressPattern(), "/NavNext") == 0) {
-//                 osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
-//                 if (isArgFalse(arg)) return;
-//                 receiver_.navNext();
-//             } else if (std::strcmp(m.AddressPattern(), "/NavActivate") == 0) {
-//                 osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
-//                 if (isArgFalse(arg)) return;
-//                 receiver_.navActivate();
-//             } else if (std::strcmp(m.AddressPattern(), "/PageNext") == 0) {
-//                 osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
-//                 if (isArgFalse(arg)) return;
-//                 receiver_.nextPage();
-//             } else if (std::strcmp(m.AddressPattern(), "/PagePrev") == 0) {
-//                 osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
-//                 if (isArgFalse(arg)) return;
-//                 receiver_.prevPage();
-//             } else if (std::strcmp(m.AddressPattern(), "/ModuleNext") == 0) {
-//                 osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
-//                 if (isArgFalse(arg)) return;
-//                 receiver_.nextModule();
-//             } else if (std::strcmp(m.AddressPattern(), "/ModulePrev") == 0) {
-//                 osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
-//                 if (isArgFalse(arg)) return;
-//                 receiver_.prevModule();
-//             } else if (std::strcmp(m.AddressPattern(), "/P1Ctrl") == 0) {
-//                 osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
-//                 float val = 0;
-//                 if (arg->IsFloat()) val = arg->AsFloat();
-//                 else if (arg->IsInt32()) val = arg->AsInt32();
-//                 receiver_.changePot(0, val);
-//             } else if (std::strcmp(m.AddressPattern(), "/P2Ctrl") == 0) {
-//                 osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
-//                 float val = 0;
-//                 if (arg->IsFloat()) val = arg->AsFloat();
-//                 else if (arg->IsInt32()) val = arg->AsInt32();
-//                 receiver_.changePot(1, val);
-//             } else if (std::strcmp(m.AddressPattern(), "/P3Ctrl") == 0) {
-//                 osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
-//                 float val = 0;
-//                 if (arg->IsFloat()) val = arg->AsFloat();
-//                 else if (arg->IsInt32()) val = arg->AsInt32();
-//                 receiver_.changePot(2, val);
-//             } else if (std::strcmp(m.AddressPattern(), "/P4Ctrl") == 0) {
-//                 osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
-//                 float val = 0;
-//                 if (arg->IsFloat()) val = arg->AsFloat();
-//                 else if (arg->IsInt32()) val = arg->AsInt32();
-//                 receiver_.changePot(3, val);
-//             } else if (std::strcmp(m.AddressPattern(), "/P5Ctrl") == 0) {
-//                 osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
-//                 float val = 0;
-//                 if (arg->IsFloat()) val = arg->AsFloat();
-//                 else if (arg->IsInt32()) val = arg->AsInt32();
-//                 receiver_.changePot(4, val);
-//             } else if (std::strcmp(m.AddressPattern(), "/P6Ctrl") == 0) {
-//                 osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
-//                 float val = 0;
-//                 if (arg->IsFloat()) val = arg->AsFloat();
-//                 else if (arg->IsInt32()) val = arg->AsInt32();
-//                 receiver_.changePot(5, val);
-//             } else if (std::strcmp(m.AddressPattern(), "/P7Ctrl") == 0) {
-//                 osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
-//                 float val = 0;
-//                 if (arg->IsFloat()) val = arg->AsFloat();
-//                 else if (arg->IsInt32()) val = arg->AsInt32();
-//                 receiver_.changePot(6, val);
-//             } else if (std::strcmp(m.AddressPattern(), "/P8Ctrl") == 0) {
-//                 osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
-//                 float val = 0;
-//                 if (arg->IsFloat()) val = arg->AsFloat();
-//                 else if (arg->IsInt32()) val = arg->AsInt32();
-//                 receiver_.changePot(7, val);
-//             }
-//         } catch (osc::Exception &e) {
-//             LOG_0("display osc message exception " << m.AddressPattern() << " : " << e.what());
-//         }
-//     }
+class NuiListener : public osc::NuiPacketListener {
+public:
+    OscDisplayListener(OscDisplay &recv) : receiver_(recv) { ; }
 
-// private:
-//     bool isArgFalse(osc::ReceivedMessage::const_iterator arg) {
-//         if(
-//                 (arg->IsFloat() && (arg->AsFloat() >= 0.5))
-//                 || (arg->IsInt32() && (arg->AsInt32() > 0  ))
-//                 ) return false;
-//         return true;
-//     }
-//     OscDisplay &receiver_;
-// };
-// /////////////////////////////////////////////////
+
+    virtual void ProcessMessage(const osc::ReceivedMessage &m,
+                                const IpEndpointName &remoteEndpoint) {
+        try {
+            char host[IpEndpointName::ADDRESS_STRING_LENGTH];
+            remoteEndpoint.AddressAsString(host);
+            if (std::strcmp(m.AddressPattern(), "/NavPrev") == 0) {
+                osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
+                if (isArgFalse(arg)) return;
+                receiver_.navPrev();
+            } else if (std::strcmp(m.AddressPattern(), "/NavNext") == 0) {
+                osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
+                if (isArgFalse(arg)) return;
+                receiver_.navNext();
+            } else if (std::strcmp(m.AddressPattern(), "/NavActivate") == 0) {
+                osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
+                if (isArgFalse(arg)) return;
+                receiver_.navActivate();
+            } else if (std::strcmp(m.AddressPattern(), "/PageNext") == 0) {
+                osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
+                if (isArgFalse(arg)) return;
+                receiver_.nextPage();
+            } else if (std::strcmp(m.AddressPattern(), "/PagePrev") == 0) {
+                osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
+                if (isArgFalse(arg)) return;
+                receiver_.prevPage();
+            } else if (std::strcmp(m.AddressPattern(), "/ModuleNext") == 0) {
+                osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
+                if (isArgFalse(arg)) return;
+                receiver_.nextModule();
+            } else if (std::strcmp(m.AddressPattern(), "/ModulePrev") == 0) {
+                osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
+                if (isArgFalse(arg)) return;
+                receiver_.prevModule();
+            } else if (std::strcmp(m.AddressPattern(), "/P1Ctrl") == 0) {
+                osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
+                float val = 0;
+                if (arg->IsFloat()) val = arg->AsFloat();
+                else if (arg->IsInt32()) val = arg->AsInt32();
+                receiver_.changePot(0, val);
+            } else if (std::strcmp(m.AddressPattern(), "/P2Ctrl") == 0) {
+                osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
+                float val = 0;
+                if (arg->IsFloat()) val = arg->AsFloat();
+                else if (arg->IsInt32()) val = arg->AsInt32();
+                receiver_.changePot(1, val);
+            } else if (std::strcmp(m.AddressPattern(), "/P3Ctrl") == 0) {
+                osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
+                float val = 0;
+                if (arg->IsFloat()) val = arg->AsFloat();
+                else if (arg->IsInt32()) val = arg->AsInt32();
+                receiver_.changePot(2, val);
+            } else if (std::strcmp(m.AddressPattern(), "/P4Ctrl") == 0) {
+                osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
+                float val = 0;
+                if (arg->IsFloat()) val = arg->AsFloat();
+                else if (arg->IsInt32()) val = arg->AsInt32();
+                receiver_.changePot(3, val);
+            } else if (std::strcmp(m.AddressPattern(), "/P5Ctrl") == 0) {
+                osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
+                float val = 0;
+                if (arg->IsFloat()) val = arg->AsFloat();
+                else if (arg->IsInt32()) val = arg->AsInt32();
+                receiver_.changePot(4, val);
+            } else if (std::strcmp(m.AddressPattern(), "/P6Ctrl") == 0) {
+                osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
+                float val = 0;
+                if (arg->IsFloat()) val = arg->AsFloat();
+                else if (arg->IsInt32()) val = arg->AsInt32();
+                receiver_.changePot(5, val);
+            } else if (std::strcmp(m.AddressPattern(), "/P7Ctrl") == 0) {
+                osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
+                float val = 0;
+                if (arg->IsFloat()) val = arg->AsFloat();
+                else if (arg->IsInt32()) val = arg->AsInt32();
+                receiver_.changePot(6, val);
+            } else if (std::strcmp(m.AddressPattern(), "/P8Ctrl") == 0) {
+                osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
+                float val = 0;
+                if (arg->IsFloat()) val = arg->AsFloat();
+                else if (arg->IsInt32()) val = arg->AsInt32();
+                receiver_.changePot(7, val);
+            }
+        } catch (osc::Exception &e) {
+            LOG_0("display osc message exception " << m.AddressPattern() << " : " << e.what());
+        }
+    }
+
+private:
+    bool isArgFalse(osc::ReceivedMessage::const_iterator arg) {
+        if(
+                (arg->IsFloat() && (arg->AsFloat() >= 0.5))
+                || (arg->IsInt32() && (arg->AsInt32() > 0  ))
+                ) return false;
+        return true;
+    }
+    OscDisplay &receiver_;
+};
+
+bool Nui::listen(unsigned port) {
+
+    if (readSocket_) {
+        listenRunning_ = false;
+        readSocket_->AsynchronousBreak();
+        receive_thread_.join();
+        OscMsg msg;
+        while (readMessageQueue_.try_dequeue(msg));
+    }
+    listenPort_ = 0;
+    readSocket_.reset();
+
+
+    listenPort_ = port;
+    try {
+        LOG_0("listening for clients on " << port);
+        readSocket_ = std::make_shared<UdpListeningReceiveSocket>(
+                IpEndpointName(IpEndpointName::ANY_ADDRESS, listenPort_),
+                packetListener_.get());
+
+        listenRunning_ = true;
+        receive_thread_ = std::thread(nui_osc_read_thread_func, this);
+    } catch (const std::runtime_error &e) {
+        listenPort_ = 0;
+        return false;
+    }
+    return true;
+}
+
+void *nui_osc_read_thread_func(void *pReceiver) {
+    Nui *pThis = static_cast<Nui *>(pReceiver);
+    pThis->readSocket()->Run();
+    return nullptr;
+}
+/////////////////////////////////////////////////
 
 
 
