@@ -68,7 +68,7 @@ void NuiParamMode1::displayParamNum(unsigned num, const Kontrol::Parameter &p, b
     parent_.displayParamNum(num, p, local, false);
 }
 
-void NuiParamMode1::changeParam(unsigned idx, int relValue) {
+void NuiParamMode1::changeParam(unsigned idx, int relValue, float steps) {
     try {
         auto pRack = model()->getRack(parent_.currentRack());
         auto pModule = model()->getModule(pRack, parent_.currentModule());
@@ -80,7 +80,6 @@ void NuiParamMode1::changeParam(unsigned idx, int relValue) {
         auto &param = pParams[idx];
 
         if (param != nullptr) {
-            const float steps = 128.0f;
             float value = float(relValue) / steps;
             Kontrol::ParamValue calc = param->calcRelative(value);
             //std::cerr << "changeParam " << idx << " " << value << " cv " << calc.floatValue() << " pv " << param->current().floatValue() << std::endl;
@@ -89,7 +88,6 @@ void NuiParamMode1::changeParam(unsigned idx, int relValue) {
     } catch (std::out_of_range) {
     }
 }
-
 
 void NuiParamMode1::onEncoder(unsigned idx, int v) {
     NuiBaseMode::onEncoder(idx, v);

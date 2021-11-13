@@ -21,6 +21,10 @@ public:
     virtual void navNext();
     virtual void navActivate();
 
+    void prevPage() override {;};
+    void nextPage() override {;};
+    void changeParam(unsigned idx, int relValue, float steps) override {;};
+
     void onButton(unsigned id, unsigned value) override;
     void onEncoder(unsigned id, int value) override;
 

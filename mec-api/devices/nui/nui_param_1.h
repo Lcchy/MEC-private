@@ -43,7 +43,7 @@ protected:
     virtual void setCurrentPage(unsigned pageIdx, bool UI);
     virtual void displayParamNum(unsigned num, const Kontrol::Parameter &p, bool local);
 
-    void changeParam(unsigned idx, int relValue);
+    void changeParam(unsigned idx, int relValue, float steps = 128.f);
     void display();
 
     std::string moduleType_;

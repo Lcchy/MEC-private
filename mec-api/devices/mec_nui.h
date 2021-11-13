@@ -18,7 +18,7 @@ namespace mec {
 class NuiParamMode;
 
 class NuiListener;
-
+class NuiPacketListener;
 
 enum NuiModes {
     NM_PARAMETER,
@@ -41,6 +41,10 @@ public:
     // fates device
     virtual void onButton(unsigned id, unsigned value) = 0;
     virtual void onEncoder(unsigned id, int value) = 0;
+
+    virtual void nextPage() = 0;
+    virtual void prevPage() = 0;
+    virtual void changeParam(unsigned idx, int relValue, float steps = 128.f) = 0;
 };
 
 
@@ -117,6 +121,11 @@ public:
 
     void nextModule();
     void prevModule();
+
+    // OSC
+    std::shared_ptr<UdpListeningReceiveSocket> readSocket() { return readSocket_; }
+
+
 private:
 
     void navPrev();
@@ -126,15 +135,34 @@ private:
     void nextPage();
     void prevPage();
 
-    friend class NuiListener;
 
     std::vector<std::shared_ptr<Kontrol::Module>> getModules(const std::shared_ptr<Kontrol::Rack> &rack);
 
-//    bool connect(const std::string& host, unsigned port);
+    /////////////////////////////////////////////////
+    // OSC
+    friend class NuiListener;
+    friend class NuiPacketListener;
+    bool connect(const std::string& host, unsigned port);
+    bool listen(unsigned port);
+    struct OscMsg {
+        static const int MAX_N_OSC_MSGS = 64;
+        static const int MAX_OSC_MESSAGE_SIZE = 128;
+        int size_;
+        char buffer_[MAX_OSC_MESSAGE_SIZE];
+        IpEndpointName origin_; // only used when for recv
+    };
+    bool listenRunning_;
+
+    std::shared_ptr<UdpListeningReceiveSocket> readSocket_;
+    std::shared_ptr<PacketListener> packetListener_;
+    std::shared_ptr<NuiListener> oscListener_;
+    moodycamel::ReaderWriterQueue<OscMsg> readMessageQueue_;
+    std::thread receive_thread_;
+    unsigned listenPort_;
+    /////////////////////////////////////////////////
 
 
     void stop() override;
-
 
     static const unsigned int OUTPUT_BUFFER_SIZE = 1024;
 
