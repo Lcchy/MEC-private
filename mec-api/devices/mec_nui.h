@@ -95,7 +95,7 @@ public:
 
     void setAux(bool b);
     void setAuxLed(int i);
-    void setAuxLine(const char* s);
+    void setAuxLine(std::string s);
 
     std::shared_ptr<Kontrol::KontrolModel> model() { return Kontrol::KontrolModel::model(); }
 
@@ -195,7 +195,7 @@ private:
 
     bool auxActive_;
     int auxLed_;
-    const char* auxLine_;
+    std::string auxLine_;
     
 };
 

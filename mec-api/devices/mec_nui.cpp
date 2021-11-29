@@ -396,14 +396,14 @@ void Nui::displayStatusBar() {
     
     std::string status = "";
     if (auxActive_) {
-        status += "Aux On";
+        status += "+";
     } else {
-        status += "Aux Off";
+        status += "-";
     }
 
-    status += "|"; 
+    status += " |"; 
     status += std::to_string(auxLed_);
-    status += "|"; 
+    status += "| "; 
     status += auxLine_;
 
     device_->drawText(15, 1, 60, status);
@@ -422,7 +422,7 @@ void Nui::setAuxLed(int i) {
     auxLed_ = i;
 }
 
-void Nui::setAuxLine(const char* s) {
+void Nui::setAuxLine(std::string s) {
     auxLine_ = s;
 }
 
