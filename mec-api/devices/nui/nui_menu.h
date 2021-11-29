@@ -33,7 +33,7 @@ public:
     void midiLearn(Kontrol::ChangeSource src, bool b) override;
     void modulationLearn(Kontrol::ChangeSource src, bool b) override;
 protected:
-    void display();
+    void display() override;
     void displayItem(unsigned idx);
     unsigned cur_;
     unsigned top_;

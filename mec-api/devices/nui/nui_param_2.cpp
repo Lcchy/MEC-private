@@ -85,5 +85,4 @@ void NuiParamMode2::displayParamNum(unsigned num, const Kontrol::Parameter &p, b
     parent_.displayParamNum(num, p, local, num == selectedParamIdx_);
 }
 
-
 } // mec

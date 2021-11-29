@@ -62,6 +62,10 @@ bool Nui::init(void *arg) {
     listenRunning_ = false;
     unsigned listenPort = prefs.getInt("listen port", 6100);
 
+    auxActive_ = false;
+    auxLed_ = 0;
+    auxLine_ = "";
+
     active_ = true;
     if (active_) {
         if (parammode == 1 || device_->numEncoders() == 3) {
@@ -386,10 +390,40 @@ void Nui::displayTitle(const std::string &module, const std::string &page) {
     device_->drawText(15, 0, 8, title.c_str());
 }
 
+void Nui::displayStatusBar() {
+    if (!device_) return;
+    device_->clearRect(0, 1, 60, 128, LINE_H);
+    
+    std::string status = "";
+    if (auxActive_) {
+        status += "Aux On";
+    } else {
+        status += "Aux Off";
+    }
+
+    status += "|"; 
+    status += std::to_string(auxLed_);
+    status += "|"; 
+    status += auxLine_;
+
+    device_->drawText(15, 1, 60, status);
+}
 
 void Nui::currentModule(const Kontrol::EntityId &modId) {
     currentModuleId_ = modId;
     model()->activeModule(Kontrol::CS_LOCAL, currentRackId_, currentModuleId_);
+}
+
+void Nui::setAux(bool b) {
+    auxActive_ = b;
+}
+
+void Nui::setAuxLed(int i) {
+    auxLed_ = i;
+}
+
+void Nui::setAuxLine(const char* s) {
+    auxLine_ = s;
 }
 
 /////////////////////////////////////////////////
@@ -484,25 +518,44 @@ public:
                 float val = 0;
                 if (arg->IsFloat()) val = arg->AsFloat();
                 else if (arg->IsInt32()) val = arg->AsInt32();
-                receiver_.modes_[receiver_.currentMode_]->changeParam(0, val, 4000.f);                
+                receiver_.modes_[receiver_.currentMode_]->changeParam(0, val, 8000.f);                
             } else if (std::strcmp(m.AddressPattern(), "/Param2") == 0) {
                 osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
                 float val = 0;
                 if (arg->IsFloat()) val = arg->AsFloat();
                 else if (arg->IsInt32()) val = arg->AsInt32();
-                receiver_.modes_[receiver_.currentMode_]->changeParam(1, val, 4000.f);                
+                receiver_.modes_[receiver_.currentMode_]->changeParam(1, val, 8000.f);                
             } else if (std::strcmp(m.AddressPattern(), "/Param3") == 0) {
                 osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
                 float val = 0;
                 if (arg->IsFloat()) val = arg->AsFloat();
                 else if (arg->IsInt32()) val = arg->AsInt32();
-                receiver_.modes_[receiver_.currentMode_]->changeParam(2, val, 4000.f);                
+                receiver_.modes_[receiver_.currentMode_]->changeParam(2, val, 8000.f);                
             } else if (std::strcmp(m.AddressPattern(), "/Param4") == 0) {
                 osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
                 float val = 0;
                 if (arg->IsFloat()) val = arg->AsFloat();
                 else if (arg->IsInt32()) val = arg->AsInt32();
-                receiver_.modes_[receiver_.currentMode_]->changeParam(3, val, 4000.f);                
+                receiver_.modes_[receiver_.currentMode_]->changeParam(3, val, 8000.f);                
+            } else if (std::strcmp(m.AddressPattern(), "/AuxAct") == 0) {
+                osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
+                int val = arg->AsInt32();
+                if (val == 1) {
+                    receiver_.setAux(true);
+                } else {
+                    receiver_.setAux(false);
+                }
+                receiver_.modes_[receiver_.currentMode_]->display();                
+            } else if (std::strcmp(m.AddressPattern(), "/AuxLed") == 0) {
+                osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
+                int val = arg->AsInt32();
+                receiver_.setAuxLed(val);
+                receiver_.modes_[receiver_.currentMode_]->display();                
+            } else if (std::strcmp(m.AddressPattern(), "/AuxLine") == 0) {
+                osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
+                const char* val = arg->AsString();
+                receiver_.setAuxLine(val);
+                receiver_.modes_[receiver_.currentMode_]->display();                
             }
         } catch (osc::Exception &e) {
             LOG_0("display osc message exception " << m.AddressPattern() << " : " << e.what());

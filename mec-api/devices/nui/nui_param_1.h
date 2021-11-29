@@ -44,7 +44,7 @@ protected:
     virtual void displayParamNum(unsigned num, const Kontrol::Parameter &p, bool local);
 
     void changeParam(unsigned idx, int relValue, float steps = 128.f);
-    void display();
+    void display() override;
 
     std::string moduleType_;
     int pageIdx_ = -1;

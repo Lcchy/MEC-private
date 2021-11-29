@@ -8,34 +8,37 @@ static const unsigned NUI_NUM_PARAMS = 4;
 
 static unsigned param1EncoderMap[] = {0, 2, 3, 1};
 
-
 void NuiParamMode1::display() {
     parent_.clearDisplay();
     auto rack = parent_.model()->getRack(parent_.currentRack());
     auto module = parent_.model()->getModule(rack, parent_.currentModule());
-    auto page = parent_.model()->getPage(module, pageId_);
-//    auto pages = parent_.model()->getPages(module);
-    auto params = parent_.model()->getParams(module, page);
+    auto pages = parent_.model()->getPages(module); //TODO safe?
 
     std::string md = "";
     std::string pd = "";
     if (module) md = module->id() + " : " + module->displayName();
-    if (page) pd = page->displayName();
-    parent_.displayTitle(md, pd);
-
-
-    unsigned int j = 0;
-    for (auto param : params) {
-        if (param != nullptr) {
-            displayParamNum(j, *param, true);
+    if (pages.size() == 0) {
+        parent_.displayTitle(md, "none");
+    } else {
+        auto page = parent_.model()->getPage(module, pageId_);
+        if (page) pd = page->displayName();
+        auto params = parent_.model()->getParams(module, page);
+        parent_.displayTitle(md, pd);
+        unsigned int j = 0;
+        for (auto param : params) {
+            if (param != nullptr) {
+                displayParamNum(j, *param, true);
+            }
+            j++;
+            if (j == NUI_NUM_PARAMS) break;
         }
-        j++;
-        if (j == NUI_NUM_PARAMS) break;
+
+        for (; j < NUI_NUM_PARAMS; j++) {
+            parent_.clearParamNum(j);
+        }
     }
 
-    for (; j < NUI_NUM_PARAMS; j++) {
-        parent_.clearParamNum(j);
-    }
+    parent_.displayStatusBar();
 }
 
 
@@ -133,12 +136,6 @@ void NuiParamMode1::setCurrentPage(unsigned pageIdx, bool UI) {
                     display();
                 } catch (std::out_of_range) { ;
                 }
-            } else {
-                parent_.clearDisplay();
-                std::string md = "";
-                std::string pd = "";
-                if (module) md = module->id() + " : " + module->displayName();
-                parent_.displayTitle(md, "none");
             }
         }
 

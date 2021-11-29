@@ -45,6 +45,7 @@ public:
     virtual void nextPage() = 0;
     virtual void prevPage() = 0;
     virtual void changeParam(unsigned idx, int relValue, float steps = 128.f) = 0;
+    virtual void display() = 0;
 };
 
 
@@ -89,6 +90,12 @@ public:
     void invertLine(unsigned line);
     void clearDisplay();
     void displayTitle(const std::string &module, const std::string &page);
+    void displayAux();
+    void displayStatusBar();
+
+    void setAux(bool b);
+    void setAuxLed(int i);
+    void setAuxLine(const char* s);
 
     std::shared_ptr<Kontrol::KontrolModel> model() { return Kontrol::KontrolModel::model(); }
 
@@ -186,6 +193,10 @@ private:
     unsigned pollFreq_;
     unsigned pollSleep_;
 
+    bool auxActive_;
+    int auxLed_;
+    const char* auxLine_;
+    
 };
 
 class NuiDeviceCallback : public NuiLite::NuiCallback {
