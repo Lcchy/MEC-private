@@ -9,6 +9,10 @@ static const unsigned NUI_NUM_PARAMS = 4;
 static unsigned param1EncoderMap[] = {0, 2, 3, 1};
 
 void NuiParamMode1::display() {
+    if (parent_.getYieldDisplay()) {
+        return;
+    }
+
     parent_.clearDisplay();
     auto rack = parent_.model()->getRack(parent_.currentRack());
     auto module = parent_.model()->getModule(rack, parent_.currentModule());
@@ -68,7 +72,9 @@ void NuiParamMode1::onButton(unsigned id, unsigned value) {
 }
 
 void NuiParamMode1::displayParamNum(unsigned num, const Kontrol::Parameter &p, bool local) {
-    parent_.displayParamNum(num, p, local, false);
+    if (!parent_.getYieldDisplay()) {
+        parent_.displayParamNum(num, p, local, false);
+    }
 }
 
 void NuiParamMode1::changeParam(unsigned idx, int relValue, float steps) {
@@ -105,8 +111,10 @@ void NuiParamMode1::onEncoder(unsigned idx, int v) {
     } else if (idx == 1 && buttonState_[2]) {
         // if holding button 3. then turning encoder 2 changed module
         if (v > 0) {
+            parent_.setYieldDisplay(false); 
             parent_.nextModule();
         } else {
+            parent_.setYieldDisplay(false); 
             parent_.prevModule();
         }
     } else {
@@ -147,6 +155,7 @@ void NuiParamMode1::setCurrentPage(unsigned pageIdx, bool UI) {
 void NuiParamMode1::activeModule(Kontrol::ChangeSource src, const Kontrol::Rack &rack, const Kontrol::Module &module) {
     if (rack.id() == parent_.currentRack()) {
         if (src != Kontrol::CS_LOCAL && module.id() != parent_.currentModule()) {
+            parent_.setYieldDisplay(false); 
             parent_.currentModule(module.id());
         }
         pageIdx_ = -1;

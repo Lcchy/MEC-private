@@ -96,6 +96,8 @@ public:
     void setAux(bool b);
     void setAuxLed(int i);
     void setAuxLine(std::string s);
+    void setYieldDisplay(bool b);
+    bool getYieldDisplay();
 
     std::shared_ptr<Kontrol::KontrolModel> model() { return Kontrol::KontrolModel::model(); }
 
@@ -196,6 +198,7 @@ private:
     bool auxActive_;
     int auxLed_;
     std::string auxLine_;
+    bool yieldDisplay_ = false;
     
 };
 

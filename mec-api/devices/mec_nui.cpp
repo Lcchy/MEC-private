@@ -215,14 +215,17 @@ std::vector<std::shared_ptr<Kontrol::Module>> Nui::getModules(const std::shared_
     return ret;
 }
 void Nui::nextPage() {
+    yieldDisplay_ = false;
     modes_[currentMode_]->nextPage();
 }
 
 void Nui::prevPage() {
+    yieldDisplay_ = false;
     modes_[currentMode_]->prevPage();
 }
 
 void Nui::nextModule() {
+    yieldDisplay_ = false;
     auto rack = model()->getRack(currentRack());
     auto modules = getModules(rack);
     bool found = false;
@@ -239,6 +242,7 @@ void Nui::nextModule() {
 }
 
 void Nui::prevModule() {
+    yieldDisplay_ = false;
     auto rack = model()->getRack(currentRack());
     auto modules = getModules(rack);
     Kontrol::EntityId prevId;
@@ -410,6 +414,7 @@ void Nui::displayStatusBar() {
 }
 
 void Nui::currentModule(const Kontrol::EntityId &modId) {
+    yieldDisplay_ = false;
     currentModuleId_ = modId;
     model()->activeModule(Kontrol::CS_LOCAL, currentRackId_, currentModuleId_);
 }
@@ -424,6 +429,14 @@ void Nui::setAuxLed(int i) {
 
 void Nui::setAuxLine(std::string s) {
     auxLine_ = s;
+}
+
+void Nui::setYieldDisplay(bool b) {
+    yieldDisplay_ = b;
+}
+
+bool Nui::getYieldDisplay() {
+    return yieldDisplay_;
 }
 
 /////////////////////////////////////////////////
@@ -553,9 +566,18 @@ public:
                 receiver_.modes_[receiver_.currentMode_]->display();                
             } else if (std::strcmp(m.AddressPattern(), "/AuxLine") == 0) {
                 osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
-                const char* val = arg->AsString();
+                std::string val = arg->AsString();
+                ++arg;
+                std::string whitespace = " ";
+                while (arg->IsString()) {
+                    val += whitespace + arg->AsString();
+                    ++arg;
+                }
                 receiver_.setAuxLine(val);
                 receiver_.modes_[receiver_.currentMode_]->display();                
+            } else if (std::strcmp(m.AddressPattern(), "/YieldDisplay") == 0) {
+                osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
+                receiver_.setYieldDisplay(!isArgFalse(arg));
             }
         } catch (osc::Exception &e) {
             LOG_0("display osc message exception " << m.AddressPattern() << " : " << e.what());
