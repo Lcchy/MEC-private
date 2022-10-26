@@ -684,20 +684,14 @@ namespace mec
                     osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
                     receiver_.setYieldDisplay(!isArgFalse(arg));
                 }
-                // else if (std::strcmp(m.AddressPattern(), "/AuxLine") == 0)
-                // {
-                //     osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
-                //     std::string val = arg->AsString();
-                //     ++arg;
-                //     std::string whitespace = " ";
-                //     while (arg->IsString())
-                //     {
-                //         val += whitespace + arg->AsString();
-                //         ++arg;
-                //     }
-                //     receiver_.setAuxLine(val);
-                //     receiver_.modes_[receiver_.currentMode_]->display();
-                // }
+                else if (std::strcmp(m.AddressPattern(), "/enc/delta") == 0)
+                {
+                    osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
+                    int enc_nb = arg->AsInt32();
+                    ++arg;
+                    int delta = arg->AsInt32();
+                    receiver_.modes_[receiver_.currentMode_]->changeParam(enc_nb, delta, 8000.f);
+                }
             }
             catch (osc::Exception &e)
             {
