@@ -684,13 +684,13 @@ namespace mec
                     osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
                     receiver_.setYieldDisplay(!isArgFalse(arg));
                 }
-                else if (std::strcmp(m.AddressPattern(), "/enc/delta") == 0)
+                else if (std::strcmp(m.AddressPattern(), "/monome/enc/delta") == 0)
                 {
                     osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
                     int enc_nb = arg->AsInt32();
                     ++arg;
                     int delta = arg->AsInt32();
-                    receiver_.modes_[receiver_.currentMode_]->changeParam(enc_nb, delta, 8000.f);
+                    receiver_.modes_[receiver_.currentMode_]->changeParam(enc_nb, delta, 2048.f); // Arc res is 1024 per rot
                 }
             }
             catch (osc::Exception &e)
