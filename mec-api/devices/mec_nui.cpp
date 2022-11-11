@@ -689,8 +689,11 @@ namespace mec
                     osc::ReceivedMessage::const_iterator arg = m.ArgumentsBegin();
                     int enc_nb = arg->AsInt32();
                     ++arg;
-                    int delta = arg->AsInt32();
-                    receiver_.modes_[receiver_.currentMode_]->changeParam(enc_nb, delta, 2048.f); // Arc res is 1024 per rot
+                    int rot = arg->AsInt32();
+                    int rot_sign = (0 < rot) - (rot < 0);
+                    float delta = float(rot) / 3.f;
+
+                    receiver_.modes_[receiver_.currentMode_]->changeParam(enc_nb, rot_sign * delta * delta, 2048.f); // Arc res is 1024 per rot
                 }
             }
             catch (osc::Exception &e)
